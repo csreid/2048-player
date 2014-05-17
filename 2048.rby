@@ -148,9 +148,9 @@ max_score = 0
 best_tile = 0
 i=0
 avg_moves = 0
-best_game = nil
 games = []
 high_score = 0
+baseline_avg_score = 0
 
 #play 500 games of 2048...
 500.times do 
@@ -159,15 +159,18 @@ high_score = 0
   until new_board.game_over?
     move = [0, 1, 2, 3].sample(1).first
     new_board.slide(move)
-    avg_moves += 1
     game.add_move(new_board, move)
   end
   game.score= new_board.score
+  baseline_avg_score += game.score
   if new_board.score > max_score
     max_score = new_board.score
   end
   games << game
 end
+
+baseline_avg_score/=500
+puts "Average score for the first 500 games: #{baseline_avg_score}"
 
 #sort the array of games by score:
 games.sort! {
@@ -177,12 +180,15 @@ games.sort! {
 
 #choose the best 5 games:
 to_replay = Array.new(games[0...5])
+#to_replay = Array.new()
+#to_replay << games[0]
 #replay them with random changes 100 times each:
 i = 1
 while true do
   games = []
   avg_score = 0
   puts "Beginning generation #{i}"
+  local_max = 0
   to_replay.each do
     |current_game|
     100.times do
@@ -209,15 +215,21 @@ while true do
         high_score = new_game.score
         puts "New high score! #{high_score}"
       end
+      if new_game.score > local_max
+        local_max = new_game.score
+      end
       games << new_game
     end
   end
   avg_score /= games.length
-  puts "Average score for generation#{i}: #{avg_score}"
+  puts "Average score for generation #{i}: #{avg_score}"
+  puts "High score for generation #{i}: #{local_max}"
   games.sort! {
     |b, a|
     a.score <=> b.score
   }
-  to_replay = Array.new(games[0...10])
+  to_replay = Array.new(games[0...5])
+  #to_replay = Array.new()
+  #to_replay << games[0]
   i += 1
 end
