@@ -1,0 +1,223 @@
+require 'stringio'
+
+class Board
+  attr_accessor :board, :size, :score, :largest_tile
+  def initialize(size = 4)
+    @board = Array.new(size) { Array.new(size,0) }
+    @size = size
+    @score = 0
+    @largest_tile = 0
+    spawn_new()
+    spawn_new()
+  end
+
+  def to_s(do_score = true)
+    #argument specifies if we should print the score for the game
+    cell_size = @board.flatten.max.to_s.length + 2
+    str = StringIO.new
+    str.puts "Score: #{@score}" if do_score
+    str.puts format_border(cell_size)
+
+    (0...@size).each do |row|
+      str.puts format_row(cell_size, row)
+      str.puts format_border(cell_size)
+    end
+    return str.string
+  end
+
+  def format_border(cell_size)
+    "+" + (['-' * cell_size]*board.size).join('+') + "+"
+  end
+
+  def format_row(cell_size, row)
+    row_strings = @board[row].map do |cell|
+      if cell == 0
+        " " * cell_size
+      else
+        padding_left = (cell_size - cell.to_s.length)/2
+        padding_right = cell_size - padding_left - cell.to_s.length
+        (" " * padding_left) + cell.to_s + (" " * padding_right)
+      end
+    end
+    "|" + row_strings.join('|') + "|"
+  end
+  
+  def rotate!(n=1)
+    @board = (0..@size-1).map{ |i| @board.map{ |row| row[i] }.reverse}
+  end
+
+  def slide(direction)
+    #direction:
+    #0 = left
+    #1 = down
+    #2 = right
+    #3 = up
+    direction.times do
+      rotate!
+    end
+    moves = 0
+    (0...@size).each do |row|
+      (0...@size-1).each do|col|
+        while @board[row][col] == 0 && @board[row][col+1..@size-1].max > 0
+          @board[row][col...@size-1] = @board[row][col+1..@size-1] + [0]
+          moves += 1
+        end
+      end
+    end
+
+    (0...@size).each do |row|
+      (0...@size-1).each do |col|
+        if @board[row][col] != 0 && @board[row][col] == @board[row][col+1]
+          @board[row][col..@size-1] = @board[row][col+1..@size-1] + [0]
+          @board[row][col] *= 2
+          if @board[row][col] > @largest_tile
+            @largest_tile = @board[row][col]
+          end
+          @score += @board[row][col]
+          moves += 1
+        end
+      end
+    end
+    (4-direction).times do
+      rotate!
+    end
+    spawn_new
+    return moves
+  end
+
+  def empty_cells
+    @board.map.with_index do |row, rowidx|
+      row.map.with_index do |num, colidx|
+        [rowidx, colidx, num]
+      end
+    end.flatten(1).find_all{|cell| cell[2] == 0 }
+  end
+  def spawn_new
+    empty = empty_cells
+    unless empty.length == 0
+      cell = empty.sample(1).flatten
+      @board[cell[0]][cell[1]] = [2, 2, 2, 2, 2, 2, 2, 2, 2, 4].sample(1).first
+    end
+  end
+  def game_over?
+    if @board.flatten.include?(0)
+      return false
+    end
+    game_over = true
+    4.times do
+      @board.each do |row|
+        row.each_cons(2) do |nums|
+          game_over = false if nums.first == nums.last
+        end
+      end
+      rotate!
+    end
+    return game_over
+  end
+end
+
+class Game
+  attr_accessor :boards, :score, :num_moves
+  def initialize
+    @boards = []
+    @num_moves = 0
+  end
+
+  def add_move(board, move)
+    #Push a board and a move into the game
+    #move uses same semantics as slide (0 = left, 1 = down, etc)
+    @boards << [Array.new(board.board), move]
+    @num_moves += 1
+  end
+
+  def to_s
+    i = 0
+    str = StringIO.new
+    @num_moves.times do
+      str.puts "Move: #{i}"
+      4.times do |row|
+        str.puts @boards[i][0][row].to_s
+      end
+      i+=1
+    end
+    return str.string
+  end
+end
+
+max_score = 0
+best_tile = 0
+i=0
+avg_moves = 0
+best_game = nil
+games = []
+high_score = 0
+
+#play 500 games of 2048...
+500.times do 
+  new_board = Board.new(4)
+  game = Game.new
+  until new_board.game_over?
+    move = [0, 1, 2, 3].sample(1).first
+    new_board.slide(move)
+    avg_moves += 1
+    game.add_move(new_board, move)
+  end
+  game.score= new_board.score
+  if new_board.score > max_score
+    max_score = new_board.score
+  end
+  games << game
+end
+
+#sort the array of games by score:
+games.sort! {
+  |b, a|
+  a.score <=> b.score
+}
+
+#choose the best 5 games:
+to_replay = Array.new(games[0...5])
+#replay them with random changes 100 times each:
+i = 1
+while true do
+  games = []
+  avg_score = 0
+  puts "Beginning generation #{i}"
+  to_replay.each do
+    |current_game|
+    100.times do
+      new_board = Board.new(4)
+      new_game = Game.new
+      move_count = 0
+      until new_board.game_over?
+        dice = (0..10).to_a.sample(1).first
+        if dice > 8
+          move = [0, 1, 2, 3].to_a.sample(1).first
+        else
+          if !current_game.boards[move_count]
+            move = [0, 1, 2, 3].to_a.sample(1).first
+          else
+            move = current_game.boards[move_count][1]
+          end
+        end
+        new_board.slide(move)
+        move_count += 1
+      end
+      new_game.score = new_board.score
+      avg_score += new_game.score
+      if new_game.score > high_score
+        high_score = new_game.score
+        puts "New high score! #{high_score}"
+      end
+      games << new_game
+    end
+  end
+  avg_score /= games.length
+  puts "Average score for generation#{i}: #{avg_score}"
+  games.sort! {
+    |b, a|
+    a.score <=> b.score
+  }
+  to_replay = Array.new(games[0...10])
+  i += 1
+end
