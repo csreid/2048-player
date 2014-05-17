@@ -99,6 +99,7 @@ class Board
       @board[cell[0]][cell[1]] = [2, 2, 2, 2, 2, 2, 2, 2, 2, 4].sample(1).first
     end
   end
+  
   def game_over?
     if @board.flatten.include?(0)
       return false
@@ -152,8 +153,8 @@ games = []
 high_score = 0
 baseline_avg_score = 0
 
-#play 500 games of 2048...
-500.times do 
+#play 100 games of 2048...
+100.times do 
   new_board = Board.new(4)
   game = Game.new
   until new_board.game_over?
@@ -169,7 +170,7 @@ baseline_avg_score = 0
   games << game
 end
 
-baseline_avg_score/=500
+baseline_avg_score/=100
 puts "Average score for the first 500 games: #{baseline_avg_score}"
 
 #sort the array of games by score:
@@ -207,6 +208,7 @@ while true do
           end
         end
         new_board.slide(move)
+        new_game.add_move(new_board, move)
         move_count += 1
       end
       new_game.score = new_board.score
